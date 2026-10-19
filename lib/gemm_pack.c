@@ -1,4 +1,4 @@
-#include "gemm_internal.h"
+#include "gemm.h"
 
 int16_t *pack_gemm_b(const gemm_inputs *inputs, size_t block_stride,
                      size_t elements)

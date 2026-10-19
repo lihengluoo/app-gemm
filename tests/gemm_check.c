@@ -1,5 +1,4 @@
 #include "gemm_test.h"
-#include "gemm_internal.h"
 #include <immintrin.h>
 #include <stdio.h>
 #include <stdlib.h>

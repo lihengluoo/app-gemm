@@ -29,6 +29,6 @@ int main(int argc, char **argv)
     gemm_options options = get_default_gemm_options();
     options.thread_count = 3;
     const gemm_status status = compute_gemm_i16_i32(&args, &options);
-    // CTest marks unsupported SIMD hosts as skipped, not arithmetic passes.
+    // make test treats unsupported SIMD hosts as skipped, not arithmetic passes.
     return status == gemm_unsupported_cpu ? 77 : (int)status;
 }

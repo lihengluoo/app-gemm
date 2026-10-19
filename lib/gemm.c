@@ -1,4 +1,4 @@
-#include "gemm_internal.h"
+#include "gemm.h"
 #include <stdlib.h>
 #include <string.h>
 
