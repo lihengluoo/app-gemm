@@ -9,6 +9,16 @@ wllvm ?= $(root_dir)/dependencies/install/wllvm/bin/wllvm
 build_dir ?= build
 ir_dir ?= $(build_dir)/ir
 gemm_backend ?= scalar
+gemm_size ?= 4096
+gemm_threads ?= 128
+
+non_digits = $(subst 9,,$(subst 8,,$(subst 7,,$(subst 6,,$(subst 5,,$(subst 4,,$(subst 3,,$(subst 2,,$(subst 1,,$(subst 0,,$(1)))))))))))
+ifneq ($(strip $(call non_digits,$(gemm_size))$(call non_digits,$(gemm_threads))),)
+$(error gemm_size and gemm_threads must be positive decimal integers)
+endif
+ifneq ($(words $(filter 1% 2% 3% 4% 5% 6% 7% 8% 9%,$(gemm_size) $(gemm_threads))),2)
+$(error gemm_size and gemm_threads must be positive decimal integers)
+endif
 
 backends := scalar 6780e_avx 4509y_avx
 cpu_scalar := 0
@@ -35,7 +45,7 @@ ifeq ($(shell uname -s),Linux)
 fault_programs := $(addsuffix /gemm_fault_check,$(addprefix $(build_dir)/,$(backends)))
 endif
 
-.PHONY: all benchmark tests test ir clean
+.PHONY: all benchmark tests test ir clean force_config
 
 all: benchmark tests
 
@@ -43,9 +53,19 @@ benchmark: $(build_dir)/$(gemm_backend)/gemm_benchmark
 
 tests: $(check_programs) $(fault_programs)
 
+# Compare before replacing so unchanged settings do not rebuild the benchmark.
+$(build_dir)/gemm_config.h: force_config
+	mkdir -p "$(@D)"
+	@printf '#define benchmark_size %s\n#define benchmark_threads %s\n' \
+	    '$(gemm_size)' '$(gemm_threads)' > "$@.tmp"
+	@cmp -s "$@.tmp" "$@" && rm "$@.tmp" || mv "$@.tmp" "$@"
+
 # Each backend has its own objects, library, and executables, so switching the
 # selected benchmark cannot reuse objects compiled for a different tile size.
 define backend_rules
+$(build_dir)/$(1)/gemm_benchmark.o: $(build_dir)/gemm_config.h gemm_benchmark.h
+$(build_dir)/$(1)/gemm_benchmark.o: CPPFLAGS += -include $(build_dir)/gemm_config.h
+
 $(build_dir)/$(1)/%.o: %.c include/gemm.h Makefile
 	mkdir -p $$(@D)
 	$$(CC) $$(CPPFLAGS) $$(include_flags) $$(CFLAGS) $$(common_flags) \
@@ -67,19 +87,16 @@ $(foreach backend,$(backends),$(eval $(call backend_rules,$(backend))))
 
 -include $(wildcard $(build_dir)/*/*.d $(build_dir)/*/lib/*.d $(build_dir)/*/tests/*.d)
 
+# Run the large benchmark explicitly; routine checks use small matrices.
 test: all
-	@$(build_dir)/$(gemm_backend)/gemm_benchmark; status=$$?; \
-	    if [ "$$status" -eq 0 ]; then :; \
-	    elif [ "$$status" -eq 77 ]; then \
-	        echo "$(gemm_backend): benchmark skipped; SIMD host unavailable"; \
-	    else exit "$$status"; fi
 	@set -e; for program in $(check_programs) $(fault_programs); do \
 	    "$$program"; \
 	done
 
 ir:
 	./build.sh --clang "$(clang)" --wllvm "$(wllvm)" \
-	    --backend "$(gemm_backend)" --output-dir "$(ir_dir)"
+	    --backend "$(gemm_backend)" --output-dir "$(ir_dir)" \
+	    --size "$(gemm_size)" --threads "$(gemm_threads)"
 
 clean:
 	rm -rf "$(build_dir)"

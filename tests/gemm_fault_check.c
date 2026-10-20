@@ -77,9 +77,11 @@ int main(void)
     require_gemm_fault(compute_gemm_with_fault(0, 1) == gemm_no_memory &&
                            create_calls == 0,
                        "B allocation failure starts workers");
-    require_gemm_fault(compute_gemm_with_fault(0, 2) == gemm_no_memory &&
+    // Worker A panels live on their stacks, so no per-worker allocation can
+    // fail; verify the join discipline on the success path instead.
+    require_gemm_fault(compute_gemm_with_fault(0, 0) == gemm_success &&
                            create_calls == 4 && join_calls == 4,
-                       "A allocation failure does not join every worker");
+                       "successful run does not join every worker");
     for (unsigned index = 1; index <= 4; ++index) {
         require_gemm_fault(
             compute_gemm_with_fault(index, 0) == gemm_thread_create_failed &&

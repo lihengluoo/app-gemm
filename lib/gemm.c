@@ -105,7 +105,8 @@ gemm_status normalize_gemm(const gemm_args *args, const gemm_options *options,
         options->thread_count == 0 ||
         options->thread_count > max_gemm_threads || options->mc == 0 ||
         options->nc == 0 || options->kc == 0 ||
-        options->nc % gemm_columns != 0 || options->kc % 2 != 0) {
+        options->nc % gemm_columns != 0 || options->kc % 2 != 0 ||
+        options->mc > gemm_max_panel_rows || options->kc > gemm_max_panel_k) {
         return gemm_invalid_argument;
     }
     const bool transpose_a = args->transpose_a == gemm_transpose;
@@ -177,10 +178,11 @@ void finish_gemm_tile(const gemm_tile *tile, const uint32_t *sums)
 
 void scale_gemm_rows(const gemm_rows *rows)
 {
-    const uint32_t beta = (uint32_t)rows->plan->inputs.beta;
+    const gemm_inputs *inputs = &rows->plan.inputs;
+    const uint32_t beta = (uint32_t)inputs->beta;
     if (beta != 1) {
         for (size_t row = 0; row < rows->row_count; ++row) {
-            for (size_t column = 0; column < rows->plan->inputs.n; ++column) {
+            for (size_t column = 0; column < inputs->n; ++column) {
                 int32_t *dst = rows->c + row * rows->ldc + column;
                 const uint32_t bits = beta == 0 ? 0 : beta * (uint32_t)*dst;
                 memcpy(dst, &bits, sizeof(bits));
@@ -202,7 +204,7 @@ gemm_status compute_gemm_i16_i32(const gemm_args *args,
     }
     if (inputs.alpha == 0 || inputs.k == 0) {
         const gemm_plan plan = {inputs, *options, NULL, 0, 0, false};
-        const gemm_rows rows = {&plan, args->c, inputs.m, args->ldc, 0};
+        const gemm_rows rows = {plan, args->c, inputs.m, args->ldc, 0};
         scale_gemm_rows(&rows);
         return gemm_success;
     }

@@ -307,6 +307,7 @@ void *check_gemm_concurrent(void *args)
 
 int main(void)
 {
+    pack_gemm_a(NULL, 0, 4, 0, 0, 0, NULL);
     check_gemm_arguments();
     check_gemm_partitions();
     if (!is_gemm_cpu_supported()) {
@@ -333,7 +334,10 @@ int main(void)
                                 {17, 33, 13},  {33, 65, 17}, {9, 35, 513},
                                 {1, 8, 133144}};
     const size_t thread_counts[] = {1, 3, 16};
-    size_t checks = 0;
+    // Exercise the maximum worker count with a complete four-row tile each.
+    check_gemm_shape(512, 32, 17, max_gemm_threads, gemm_row_major,
+                     gemm_no_transpose, gemm_no_transpose, 1, 0);
+    size_t checks = 1;
     for (size_t shape = 0; shape < sizeof(shapes) / sizeof(shapes[0]);
          ++shape) {
         for (unsigned order = 0; order < 2; ++order) {

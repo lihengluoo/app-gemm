@@ -30,14 +30,21 @@ int16_t *pack_gemm_b(const gemm_inputs *inputs, size_t block_stride,
 void pack_gemm_a(const gemm_inputs *inputs, size_t row_begin, size_t rows,
                  size_t k_begin, size_t depth, size_t stride, int16_t *dst)
 {
+    if (stride == 0) {
+        return;
+    }
     const size_t padded_rows = (rows + gemm_rows_per_tile - 1) /
                                gemm_rows_per_tile * gemm_rows_per_tile;
     for (size_t row = 0; row < padded_rows; ++row) {
+        int16_t *dst_row = dst + row * stride;
+        // Padded rows and zero-depth panels must not form an input pointer.
+        const int16_t *src_row = row < rows && depth != 0 ?
+            inputs->a + (row_begin + row) * inputs->a_row_stride +
+                k_begin * inputs->a_k_stride : NULL;
         for (size_t inner = 0; inner < stride; ++inner) {
-            dst[row * stride + inner] =
+            dst_row[inner] =
                 row < rows && inner < depth ?
-                    inputs->a[(row_begin + row) * inputs->a_row_stride +
-                              (k_begin + inner) * inputs->a_k_stride] :
+                    src_row[inner * inputs->a_k_stride] :
                     0;
         }
     }

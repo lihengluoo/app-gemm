@@ -132,13 +132,22 @@ typedef struct gemm_plan {
 } gemm_plan;
 
 // Initialized before any create, and never changed until every join finishes.
+// The plan is embedded by value so a single descriptor copy carries every
+// worker input without following a loaded pointer.
 typedef struct gemm_rows {
-    const gemm_plan *plan;
+    gemm_plan plan;
     int32_t *c;
     size_t row_count;
     size_t ldc;
     size_t a_row_begin;
 } gemm_rows;
+
+// Tuning bounds that size the worker A panel at compile time. Rounding a
+// shape-capped mc (multiple of gemm_rows_per_tile) and kc (even) never
+// exceeds these products, so the panel alloca always holds the whole block.
+enum { gemm_max_panel_rows = 256,
+       gemm_max_panel_k = 512,
+       gemm_max_panel_elements = gemm_max_panel_rows * gemm_max_panel_k };
 
 typedef struct gemm_tile {
     const int16_t *a;
