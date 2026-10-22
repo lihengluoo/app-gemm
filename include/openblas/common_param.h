@@ -1647,6 +1647,20 @@ extern gotoblas_t *gotoblas;
 #define GEMM_DEFAULT_R		DGEMM_DEFAULT_R
 #define GEMM_DEFAULT_UNROLL_M	DGEMM_DEFAULT_UNROLL_M
 #define GEMM_DEFAULT_UNROLL_N	DGEMM_DEFAULT_UNROLL_N
+#elif defined(INT8)
+/* INT8 shares the generic 2x2 kernel and copy kernels with DGEMM, so it
+   reuses the DGEMM blocking; SIZE 1 shrinks the packed buffers. */
+#define GEMM_P			DGEMM_P
+#define GEMM_Q			DGEMM_Q
+#define GEMM_R			DGEMM_R
+#define GEMM_UNROLL_M		DGEMM_UNROLL_M
+#define GEMM_UNROLL_N		DGEMM_UNROLL_N
+#define GEMM_UNROLL_MN		DGEMM_UNROLL_MN
+#define GEMM_DEFAULT_P		DGEMM_DEFAULT_P
+#define GEMM_DEFAULT_Q		DGEMM_DEFAULT_Q
+#define GEMM_DEFAULT_R		DGEMM_DEFAULT_R
+#define GEMM_DEFAULT_UNROLL_M	DGEMM_DEFAULT_UNROLL_M
+#define GEMM_DEFAULT_UNROLL_N	DGEMM_DEFAULT_UNROLL_N
 #elif defined(HFLOAT16)
 #define GEMM_P			SHGEMM_P
 #define GEMM_Q			SHGEMM_Q

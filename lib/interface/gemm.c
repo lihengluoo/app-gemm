@@ -53,6 +53,8 @@
 #elif defined(DOUBLE)
 #define ERROR_NAME "DGEMM "
 #define GEMV BLASFUNC(dgemv)
+#elif defined(INT8)
+#define ERROR_NAME "I8GEMM "
 #elif defined(BFLOAT16)
 #ifdef BGEMM
 #define ERROR_NAME "BGEMM "
@@ -284,6 +286,10 @@ void NAME(char *TRANSA, char *TRANSB,
   int mode  =  BLAS_XDOUBLE | BLAS_REAL;
 #elif defined(DOUBLE)
   int mode  =  BLAS_DOUBLE  | BLAS_REAL;
+#elif defined(INT8)
+  /* Tagged BLAS_DOUBLE so the thread server sizes the worker sb scratch
+     from the shared DGEMM blocking; the int8 packing leaves slack. */
+  int mode  =  BLAS_DOUBLE  | BLAS_REAL;
 #else
   int mode  =  BLAS_SINGLE  | BLAS_REAL;
 #endif
@@ -406,6 +412,10 @@ void CNAME(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE TransA, enum CBLAS_TRANS
 #ifdef XDOUBLE
   int mode  =  BLAS_XDOUBLE | BLAS_REAL;
 #elif defined(DOUBLE)
+  int mode  =  BLAS_DOUBLE  | BLAS_REAL;
+#elif defined(INT8)
+  /* Tagged BLAS_DOUBLE so the thread server sizes the worker sb scratch
+     from the shared DGEMM blocking; the int8 packing leaves slack. */
   int mode  =  BLAS_DOUBLE  | BLAS_REAL;
 #else
   int mode  =  BLAS_SINGLE  | BLAS_REAL;

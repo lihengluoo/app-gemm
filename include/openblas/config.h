@@ -1,6 +1,6 @@
 #pragma once
 
-/* Fixed configuration for the extracted Linux x86-64 pthread DGEMM build. */
+/* Fixed configuration for the extracted Linux x86-64 pthread INT8 GEMM build. */
 #if !defined(__linux__) || !defined(__x86_64__)
 #error "This OpenBLAS subset requires Linux x86-64."
 #endif
@@ -42,6 +42,8 @@
 #define NO_LAPACK
 #define NO_LAPACKE
 #define NO_WARMUP
+/* Kept: the thread server sizes per-worker GEMM scratch through the
+   BUILD_DOUBLE branch, whose DGEMM blocking the INT8 type shares. */
 #define BUILD_DOUBLE
 #define MAX_STACK_ALLOC 2048
 #define VERSION "0.3.34.dev"

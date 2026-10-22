@@ -169,6 +169,8 @@ int bgemm_beta(BLASLONG, BLASLONG, BLASLONG, bfloat16,
 	       bfloat16 *, BLASLONG, bfloat16 *, BLASLONG, bfloat16 *, BLASLONG);
 int sbgemm_beta(BLASLONG, BLASLONG, BLASLONG, float,
 	       bfloat16 *, BLASLONG, bfloat16 *, BLASLONG, float *, BLASLONG);
+int i8gemm_beta(BLASLONG, BLASLONG, BLASLONG, int32_t,
+	       int8_t *, BLASLONG, int8_t *, BLASLONG, int32_t *, BLASLONG);
 int sgemm_beta(BLASLONG, BLASLONG, BLASLONG, float,
 	       float  *, BLASLONG, float   *, BLASLONG, float  *, BLASLONG);
 int dgemm_beta(BLASLONG, BLASLONG, BLASLONG, double,
@@ -202,6 +204,8 @@ int sbgemm_incopy(BLASLONG m, BLASLONG n, bfloat16 *a, BLASLONG lda, bfloat16 *b
 int sbgemm_itcopy(BLASLONG m, BLASLONG n, bfloat16 *a, BLASLONG lda, bfloat16 *b);
 int sbgemm_oncopy(BLASLONG m, BLASLONG n, bfloat16 *a, BLASLONG lda, bfloat16 *b);
 int sbgemm_otcopy(BLASLONG m, BLASLONG n, bfloat16 *a, BLASLONG lda, bfloat16 *b);
+int i8gemm_oncopy(BLASLONG m, BLASLONG n, int8_t *a, BLASLONG lda, int8_t *b);
+int i8gemm_otcopy(BLASLONG m, BLASLONG n, int8_t *a, BLASLONG lda, int8_t *b);
 int sgemm_incopy(BLASLONG m, BLASLONG n, float *a, BLASLONG lda, float *b);
 int sgemm_itcopy(BLASLONG m, BLASLONG n, float *a, BLASLONG lda, float *b);
 int sgemm_oncopy(BLASLONG m, BLASLONG n, float *a, BLASLONG lda, float *b);
@@ -644,6 +648,7 @@ int xher2k_kernel_LC(BLASLONG m, BLASLONG n, BLASLONG k, xdouble alpha_r, xdoubl
 int shgemm_kernel(BLASLONG, BLASLONG, BLASLONG, float,  hfloat16 *, hfloat16 *, float *, BLASLONG);
 int bgemm_kernel(BLASLONG, BLASLONG, BLASLONG, bfloat16,  bfloat16 *, bfloat16 *, bfloat16 *, BLASLONG);
 int sbgemm_kernel(BLASLONG, BLASLONG, BLASLONG, float,  bfloat16 *, bfloat16 *, float *, BLASLONG);
+int i8gemm_kernel(BLASLONG, BLASLONG, BLASLONG, int32_t, int8_t *, int8_t *, int32_t *, BLASLONG);
 int sgemm_kernel(BLASLONG, BLASLONG, BLASLONG, float,  float  *, float  *, float  *, BLASLONG);
 int dgemm_kernel(BLASLONG, BLASLONG, BLASLONG, double, double *, double *, double *, BLASLONG);
 int ssymm_kernel(BLASLONG, BLASLONG, BLASLONG, float,  float  *, float  *, float  *, BLASLONG);
@@ -843,6 +848,11 @@ int dgemm_nn(blas_arg_t *, BLASLONG *, BLASLONG *, double *, double *, BLASLONG)
 int dgemm_nt(blas_arg_t *, BLASLONG *, BLASLONG *, double *, double *, BLASLONG);
 int dgemm_tn(blas_arg_t *, BLASLONG *, BLASLONG *, double *, double *, BLASLONG);
 int dgemm_tt(blas_arg_t *, BLASLONG *, BLASLONG *, double *, double *, BLASLONG);
+
+int i8gemm_nn(blas_arg_t *, BLASLONG *, BLASLONG *, int8_t *, int8_t *, BLASLONG);
+int i8gemm_nt(blas_arg_t *, BLASLONG *, BLASLONG *, int8_t *, int8_t *, BLASLONG);
+int i8gemm_tn(blas_arg_t *, BLASLONG *, BLASLONG *, int8_t *, int8_t *, BLASLONG);
+int i8gemm_tt(blas_arg_t *, BLASLONG *, BLASLONG *, int8_t *, int8_t *, BLASLONG);
 
 #ifdef QUAD_PRECISION
 int qgemm_nn(blas_arg_t *, BLASLONG *, BLASLONG *, xidouble *, xidouble *, BLASLONG);

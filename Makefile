@@ -12,8 +12,8 @@ test_cflags := -std=c11 -Wall -Wextra -Werror -Wpedantic \
 
 runtime_names := blas_server blas_server_callback divtable memory \
                  openblas_cancel openblas_env openblas_error_handle parameter xerbla
-named_names := cblas_dgemm dgemm_nn dgemm_nt dgemm_tn dgemm_tt gemm_thread_n \
-               dgemm_kernel dgemm_oncopy dgemm_otcopy dgemm_beta
+named_names := cblas_i8gemm i8gemm_nn i8gemm_nt i8gemm_tn i8gemm_tt gemm_thread_n \
+               i8gemm_kernel i8gemm_oncopy i8gemm_otcopy i8gemm_beta
 library_objects := $(addprefix $(build_dir)/,$(addsuffix .o,$(runtime_names) $(named_names)))
 library := $(build_dir)/libopenblas_gemm.a
 check_program := $(build_dir)/gemm_check
@@ -42,16 +42,16 @@ $(build_dir)/$(1).o: $(2) $(4) Makefile
 	    $(3) $(call named_cppflags,$(1)) -MMD -MP -c $$< -o $$@
 endef
 
-$(eval $(call compile_named,cblas_dgemm,lib/interface/gemm.c,-DDOUBLE -DCBLAS))
-$(eval $(call compile_named,dgemm_nn,lib/driver/level3/gemm.c,-DDOUBLE -DNN,lib/driver/level3/level3.c))
-$(eval $(call compile_named,dgemm_nt,lib/driver/level3/gemm.c,-DDOUBLE -DNT,lib/driver/level3/level3.c))
-$(eval $(call compile_named,dgemm_tn,lib/driver/level3/gemm.c,-DDOUBLE -DTN,lib/driver/level3/level3.c))
-$(eval $(call compile_named,dgemm_tt,lib/driver/level3/gemm.c,-DDOUBLE -DTT,lib/driver/level3/level3.c))
+$(eval $(call compile_named,cblas_i8gemm,lib/interface/gemm.c,-DINT8 -DCBLAS))
+$(eval $(call compile_named,i8gemm_nn,lib/driver/level3/gemm.c,-DINT8 -DNN,lib/driver/level3/level3.c))
+$(eval $(call compile_named,i8gemm_nt,lib/driver/level3/gemm.c,-DINT8 -DNT,lib/driver/level3/level3.c))
+$(eval $(call compile_named,i8gemm_tn,lib/driver/level3/gemm.c,-DINT8 -DTN,lib/driver/level3/level3.c))
+$(eval $(call compile_named,i8gemm_tt,lib/driver/level3/gemm.c,-DINT8 -DTT,lib/driver/level3/level3.c))
 $(eval $(call compile_named,gemm_thread_n,lib/driver/level3/gemm_thread_n.c))
-$(eval $(call compile_named,dgemm_kernel,lib/kernel/generic/gemmkernel_2x2.c,-DDOUBLE))
-$(eval $(call compile_named,dgemm_oncopy,lib/kernel/generic/gemm_ncopy_2.c,-DDOUBLE))
-$(eval $(call compile_named,dgemm_otcopy,lib/kernel/generic/gemm_tcopy_2.c,-DDOUBLE))
-$(eval $(call compile_named,dgemm_beta,lib/kernel/generic/gemm_beta.c,-DDOUBLE))
+$(eval $(call compile_named,i8gemm_kernel,lib/kernel/generic/gemmkernel_2x2.c,-DINT8))
+$(eval $(call compile_named,i8gemm_oncopy,lib/kernel/generic/gemm_ncopy_2.c,-DINT8))
+$(eval $(call compile_named,i8gemm_otcopy,lib/kernel/generic/gemm_tcopy_2.c,-DINT8))
+$(eval $(call compile_named,i8gemm_beta,lib/kernel/generic/gemm_beta.c,-DINT8))
 
 $(build_dir)/gemm_check.o: tests/gemm_check.c tests/gemm_check.h include/cblas.h Makefile
 	mkdir -p "$(@D)"

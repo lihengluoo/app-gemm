@@ -187,6 +187,8 @@ extern "C" {
 #define ZERO  0.e0L
 #elif defined DOUBLE
 #define ZERO  0.e0
+#elif defined(INT8)
+#define ZERO  0
 #else
 #define ZERO  0.e0f
 #endif
@@ -197,6 +199,8 @@ extern "C" {
 #define ONE  1.e0L
 #elif defined DOUBLE
 #define ONE  1.e0
+#elif defined(INT8)
+#define ONE  1
 #else
 #define ONE  1.e0f
 #endif
@@ -339,6 +343,14 @@ typedef int blasint;
 #define SIZE	8
 #define  BASE_SHIFT 3
 #define ZBASE_SHIFT 4
+#elif defined(INT8)
+/* Integer GEMM: int8 inputs and packed buffers, int32 accumulation. */
+#define IFLOAT	int8_t
+#define XFLOAT	IFLOAT
+#define FLOAT	int32_t
+#define SIZE	1
+#define BASE_SHIFT 0
+#define ZBASE_SHIFT 1
 #elif defined(BFLOAT16)
 #define IFLOAT	bfloat16
 #define XFLOAT IFLOAT
