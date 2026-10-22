@@ -52,12 +52,15 @@
 
 static size_t openblas_xerbla_name_length(const char *message,
                                           blasint length) {
-  const char *terminator;
+  size_t scanned;
 
   if (message == NULL || length <= 0) return 0;
 
-  terminator = memchr(message, '\0', (size_t)length);
-  if (terminator != NULL) return (size_t)(terminator - message);
+  /* Plain scan instead of memchr so the library's external surface
+     stays minimal; the compiler lowers this to a counted loop. */
+  for (scanned = 0; scanned < (size_t)length; scanned++) {
+    if (message[scanned] == '\0') return scanned;
+  }
 
   return (size_t)length;
 }

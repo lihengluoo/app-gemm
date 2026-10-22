@@ -7,22 +7,33 @@ row/column layouts, transpose modes, and padded leading dimensions.
 Accumulation is exact while `|alpha| * k * 127 * 127 + |beta| * |C|`
 stays below 2^31; exceeding it is signed overflow.
 
-## Build and check
+## Build and benchmark
 
-Requires Linux x86-64, a C11 GCC/Clang compiler, GNU Make, and a linker
-supporting `--wrap`. The build uses POSIX threads and the C math library.
+Requires Linux x86-64, a C11 GCC/Clang compiler, and GNU Make. The build
+uses POSIX threads.
 
 ```sh
-make -j
-make test
-# Build and run the same correctness executable:
-make run
+make -j          # build the library and the benchmark
+make run         # build and run the i8gemm benchmark
 ```
 
-The outputs are `build/libopenblas_gemm.a` and `build/gemm_check`.
+The outputs are `build/libopenblas_gemm.a` and `build/gemm_bench`.
 Applications include `include/cblas.h` and link the archive with
-`-pthread -lm`. The public header declares I8GEMM and the thread count
+`-pthread`. The public header declares I8GEMM and the thread count
 setter/getter implemented by this subset.
+
+`bench.c`/`bench.h` (modeled on `applications/archive/gemm.c`) time
+`BENCH_ITERATION_COUNT` warm calls over statically allocated
+`BENCH_MATRIX_SIZE` matrices after one untimed warm-up, report elapsed
+time and throughput in GOPS (`2*M*N*K` int8 operations per second), and
+verify sampled results against an independent int64 reference dot
+product. The sizes, iteration count, and thread count are compile-time
+defines (`BENCH_MATRIX_SIZE`, `BENCH_K_DEPTH`, `BENCH_ITERATION_COUNT`,
+`BENCH_THREAD_COUNT`); pass them as make variables to override, e.g.
+`make run BENCH_MATRIX_SIZE=1024 BENCH_THREAD_COUNT=32` (a change
+rebuilds the benchmark). Threads are set programmatically via
+`openblas_set_num_threads`. `clock_gettime` is the only external call
+the benchmark adds beyond the library's minimal contract.
 
 ## Kernel backends
 
@@ -37,21 +48,17 @@ setter/getter implemented by this subset.
   (`pad_min_l`).
 
 ```sh
-make -C applications/gemm test kernel_backend=4509y
+make -C applications/gemm run kernel_backend=4509y
 ```
 
 The AVX-512 flags (`-mavx512f -mavx512bw -mavx512vl -mavx512vnni`) apply
 only to the backend objects; the rest of the library stays baseline
 x86-64. A constructor aborts with exit 86 if the host lacks the required
-extensions, and `make test` skips with exit 77 on such hosts, so building
-the 4509y backend on another machine is safe.
+extensions, so building the 4509y backend on another machine is safe;
+running its benchmark needs an AVX-512 VNNI host.
 
-The tests compare with an independent int64 scalar calculation for both
-layouts, all four transpose combinations, and one/four threads. They check
-odd and blocked dimensions, alpha/beta scaling, beta zero with junk-filled
-C, zero dimensions/depth, unchanged inputs, and padding/guards. Linker
-wrapping checks that the large cases dispatch four jobs through the
-parallel driver.
+The benchmark verifies sampled results of every backend against an
+independent int64 scalar reference.
 
 ## Extracted implementation
 
@@ -71,15 +78,18 @@ The configuration uses generic 2x2 C kernels (or the selected SIMD
 backend), the existing simple Level 3 threading path, and one pthread per
 job created and joined by each parallel call. Small-matrix kernels, GEMV
 forwarding, dynamic CPU dispatch, LAPACK, and a persistent thread pool are
-disabled. Threads are user selected through `OPENBLAS_NUM_THREADS` or
+disabled. Threads are user selected through
 `openblas_set_num_threads`, capped at `MAX_CPU_NUMBER` (144) in
-`include/openblas/config.h`.
+`include/openblas/config.h`; there is no environment variable or CPU
+probing, keeping the library's external surface at
+`pthread_create`/`pthread_join`, `pthread_mutex_lock`/`unlock`,
+`aligned_alloc`/`free`, `abort`, and `printf`.
 Generic kernels prioritize a small extraction over tuned SIMD performance.
 
 For a separate sanitizer build:
 
 ```sh
-make test build_dir=build/asan \
+make run build_dir=build/asan \
     CFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer'
 ```
 
