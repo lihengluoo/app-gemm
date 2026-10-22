@@ -1,102 +1,71 @@
 CC ?= cc
 AR ?= ar
 CFLAGS ?= -O2 -g
-
-root_dir := $(abspath ../..)
-llvm_root ?= $(root_dir)/dependencies/install/llvm21
-clang := $(llvm_root)/bin/clang
-wllvm ?= $(root_dir)/dependencies/install/wllvm/bin/wllvm
 build_dir ?= build
-ir_dir ?= $(build_dir)/ir
-gemm_backend ?= scalar
-gemm_size ?= 4096
-gemm_threads ?= 128
 
-non_digits = $(subst 9,,$(subst 8,,$(subst 7,,$(subst 6,,$(subst 5,,$(subst 4,,$(subst 3,,$(subst 2,,$(subst 1,,$(subst 0,,$(1)))))))))))
-ifneq ($(strip $(call non_digits,$(gemm_size))$(call non_digits,$(gemm_threads))),)
-$(error gemm_size and gemm_threads must be positive decimal integers)
-endif
-ifneq ($(words $(filter 1% 2% 3% 4% 5% 6% 7% 8% 9%,$(gemm_size) $(gemm_threads))),2)
-$(error gemm_size and gemm_threads must be positive decimal integers)
-endif
+.DEFAULT_GOAL := all
 
-backends := scalar 6780e_avx 4509y_avx
-cpu_scalar := 0
-cpu_6780e_avx := 1
-cpu_4509y_avx := 2
-kernel_scalar := lib/gemm_scalar.c
-kernel_6780e_avx := lib/gemm_6780e.c
-kernel_4509y_avx := lib/gemm_4509y.c
-common_files := lib/gemm.c lib/gemm_pack.c lib/gemm_threads.c
+library_cppflags := -Iinclude/openblas
+library_cflags := -std=c11 -Wall -m64 -fPIC -pthread
+test_cflags := -std=c11 -Wall -Wextra -Werror -Wpedantic \
+               -Wstrict-prototypes -Wmissing-prototypes -pthread
 
-ifeq ($(kernel_$(gemm_backend)),)
-$(error Unknown GEMM backend: $(gemm_backend))
-endif
+runtime_names := blas_server blas_server_callback divtable memory \
+                 openblas_cancel openblas_env openblas_error_handle parameter xerbla
+named_names := cblas_dgemm dgemm_nn dgemm_nt dgemm_tn dgemm_tt gemm_thread_n \
+               dgemm_kernel dgemm_oncopy dgemm_otcopy dgemm_beta
+library_objects := $(addprefix $(build_dir)/,$(addsuffix .o,$(runtime_names) $(named_names)))
+library := $(build_dir)/libopenblas_gemm.a
+check_program := $(build_dir)/gemm_check
 
-include_flags := -D_POSIX_C_SOURCE=200809L -Iinclude
-# GCC and Clang both accept this spelling; explicit SIMD intrinsics remain.
-common_flags := -std=c11 -Wall -Wextra -Werror -Wpedantic \
-                -Wstrict-prototypes -Wmissing-prototypes -fno-tree-vectorize
-fault_flags := -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join \
-               -Wl,--wrap=aligned_alloc
-check_programs := $(addsuffix /gemm_check,$(addprefix $(build_dir)/,$(backends)))
-fault_programs :=
-ifeq ($(shell uname -s),Linux)
-fault_programs := $(addsuffix /gemm_fault_check,$(addprefix $(build_dir)/,$(backends)))
-endif
+# These names are required by the OpenBLAS source templates.
+named_cppflags = -DASMNAME=$(1) -DASMFNAME=$(1)_ -DNAME=$(1)_ -DCNAME=$(1) \
+                 -DCHAR_NAME='"$(1)_"' -DCHAR_CNAME='"$(1)"'
 
-.PHONY: all benchmark tests test ir clean force_config
+.PHONY: all test run clean
 
-all: benchmark tests
+all: $(library) $(check_program)
 
-benchmark: $(build_dir)/$(gemm_backend)/gemm_benchmark
-
-tests: $(check_programs) $(fault_programs)
-
-# Compare before replacing so unchanged settings do not rebuild the benchmark.
-$(build_dir)/gemm_config.h: force_config
+$(library): $(library_objects)
 	mkdir -p "$(@D)"
-	@printf '#define benchmark_size %s\n#define benchmark_threads %s\n' \
-	    '$(gemm_size)' '$(gemm_threads)' > "$@.tmp"
-	@cmp -s "$@.tmp" "$@" && rm "$@.tmp" || mv "$@.tmp" "$@"
+	$(AR) rcs $@ $^
 
-# Each backend has its own objects, library, and executables, so switching the
-# selected benchmark cannot reuse objects compiled for a different tile size.
-define backend_rules
-$(build_dir)/$(1)/gemm_benchmark.o: $(build_dir)/gemm_config.h gemm_benchmark.h
-$(build_dir)/$(1)/gemm_benchmark.o: CPPFLAGS += -include $(build_dir)/gemm_config.h
+$(build_dir)/%.o: lib/driver/others/%.c Makefile
+	mkdir -p "$(@D)"
+	$(CC) $(CPPFLAGS) $(library_cppflags) $(CFLAGS) $(library_cflags) \
+	    -MMD -MP -c $< -o $@
 
-$(build_dir)/$(1)/%.o: %.c include/gemm.h Makefile
-	mkdir -p $$(@D)
-	$$(CC) $$(CPPFLAGS) $$(include_flags) $$(CFLAGS) $$(common_flags) \
-	    -Dgemm_cpu=$(cpu_$(1)) -pthread -MMD -MP -c $$< -o $$@
-
-$(build_dir)/$(1)/libgemm.a: $(addprefix $(build_dir)/$(1)/,$(common_files:.c=.o) $(kernel_$(1):.c=.o))
-	$$(AR) rcs $$@ $$^
-
-$(build_dir)/$(1)/gemm_benchmark: $(build_dir)/$(1)/gemm_benchmark.o $(build_dir)/$(1)/libgemm.a
-	$$(CC) $$(CFLAGS) $$(LDFLAGS) $$^ -pthread $$(LDLIBS) -o $$@
-
-$(build_dir)/$(1)/gemm_check: $(build_dir)/$(1)/tests/gemm_check.o $(build_dir)/$(1)/libgemm.a
-	$$(CC) $$(CFLAGS) $$(LDFLAGS) $$^ -pthread $$(LDLIBS) -o $$@
-
-$(build_dir)/$(1)/gemm_fault_check: $(build_dir)/$(1)/tests/gemm_fault_check.o $(build_dir)/$(1)/libgemm.a
-	$$(CC) $$(CFLAGS) $$(LDFLAGS) $$^ -pthread $$(fault_flags) $$(LDLIBS) -o $$@
+define compile_named
+$(build_dir)/$(1).o: $(2) $(4) Makefile
+	mkdir -p "$$(@D)"
+	$$(CC) $$(CPPFLAGS) $$(library_cppflags) $$(CFLAGS) $$(library_cflags) \
+	    $(3) $(call named_cppflags,$(1)) -MMD -MP -c $$< -o $$@
 endef
-$(foreach backend,$(backends),$(eval $(call backend_rules,$(backend))))
 
--include $(wildcard $(build_dir)/*/*.d $(build_dir)/*/lib/*.d $(build_dir)/*/tests/*.d)
+$(eval $(call compile_named,cblas_dgemm,lib/interface/gemm.c,-DDOUBLE -DCBLAS))
+$(eval $(call compile_named,dgemm_nn,lib/driver/level3/gemm.c,-DDOUBLE -DNN,lib/driver/level3/level3.c))
+$(eval $(call compile_named,dgemm_nt,lib/driver/level3/gemm.c,-DDOUBLE -DNT,lib/driver/level3/level3.c))
+$(eval $(call compile_named,dgemm_tn,lib/driver/level3/gemm.c,-DDOUBLE -DTN,lib/driver/level3/level3.c))
+$(eval $(call compile_named,dgemm_tt,lib/driver/level3/gemm.c,-DDOUBLE -DTT,lib/driver/level3/level3.c))
+$(eval $(call compile_named,gemm_thread_n,lib/driver/level3/gemm_thread_n.c))
+$(eval $(call compile_named,dgemm_kernel,lib/kernel/generic/gemmkernel_2x2.c,-DDOUBLE))
+$(eval $(call compile_named,dgemm_oncopy,lib/kernel/generic/gemm_ncopy_2.c,-DDOUBLE))
+$(eval $(call compile_named,dgemm_otcopy,lib/kernel/generic/gemm_tcopy_2.c,-DDOUBLE))
+$(eval $(call compile_named,dgemm_beta,lib/kernel/generic/gemm_beta.c,-DDOUBLE))
 
-# Run the large benchmark explicitly; routine checks use small matrices.
-test: all
-	@set -e; for program in $(check_programs) $(fault_programs); do \
-	    "$$program"; \
-	done
+$(build_dir)/gemm_check.o: tests/gemm_check.c tests/gemm_check.h include/cblas.h Makefile
+	mkdir -p "$(@D)"
+	$(CC) $(CPPFLAGS) -Iinclude $(CFLAGS) $(test_cflags) -MMD -MP -c $< -o $@
 
-ir:
-	./build.sh --clang "$(clang)" --wllvm "$(wllvm)" \
-	    --backend "$(gemm_backend)" --output-dir "$(ir_dir)" \
-	    --size "$(gemm_size)" --threads "$(gemm_threads)"
+$(check_program): $(build_dir)/gemm_check.o $(library)
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -Wl,--wrap=exec_blas -pthread -lm $(LDLIBS) -o $@
+
+test: $(check_program)
+	OPENBLAS_NUM_THREADS=4 $(check_program)
+
+run: test
 
 clean:
 	rm -rf "$(build_dir)"
+
+-include $(library_objects:.o=.d) $(build_dir)/gemm_check.d
