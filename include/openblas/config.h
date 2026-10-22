@@ -35,7 +35,10 @@
 
 #define HAVE_C11
 #define SMP_SERVER
-#define MAX_CPU_NUMBER 4
+/* Threads are created and joined per parallel call; the count is user
+   selected through OPENBLAS_NUM_THREADS or openblas_set_num_threads().
+   The cap covers 4509Y-class machines with up to 144 cores. */
+#define MAX_CPU_NUMBER 144
 #define MAX_PARALLEL_NUMBER 1
 #define USE_SIMPLE_THREADED_LEVEL3
 #define NO_AFFINITY

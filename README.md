@@ -24,6 +24,28 @@ Applications include `include/cblas.h` and link the archive with
 `-pthread -lm`. The public header declares I8GEMM and the thread count
 setter/getter implemented by this subset.
 
+## Kernel backends
+
+`kernel_backend` selects the compute kernel at build time:
+
+- `generic` (default): portable scalar 2x2 kernel; runs on any x86-64 host.
+- `4509y`: AVX-512 VNNI kernel for Intel 4509Y class CPUs. Each int8 value
+  is packed as a sign-extended int16 lane so `vpdpwssd` multiplies two k
+  steps of eight rows against 32 columns per tile, with masked stores for
+  column tails and a scalar row tail. Packed panels hold one 16-bit lane
+  per element, so the driver spaces B panels by `2 * ceil(k / 2)` bytes
+  (`pad_min_l`).
+
+```sh
+make -C applications/gemm test kernel_backend=4509y
+```
+
+The AVX-512 flags (`-mavx512f -mavx512bw -mavx512vl -mavx512vnni`) apply
+only to the backend objects; the rest of the library stays baseline
+x86-64. A constructor aborts with exit 86 if the host lacks the required
+extensions, and `make test` skips with exit 77 on such hosts, so building
+the 4509y backend on another machine is safe.
+
 The tests compare with an independent int64 scalar calculation for both
 layouts, all four transpose combinations, and one/four threads. They check
 odd and blocked dimensions, alpha/beta scaling, beta zero with junk-filled
@@ -45,11 +67,13 @@ int8 inputs and packed buffers (`IFLOAT`/`XFLOAT`), int32 accumulation
 tagged `BLAS_DOUBLE` so the worker scratch keeps its size from that
 shared blocking.
 
-The configuration uses generic 2x2 C kernels, the existing simple Level 3
-threading path, and one pthread per job created and joined by each
-parallel call. Small-matrix kernels, GEMV forwarding, dynamic CPU
-dispatch, LAPACK, and a persistent thread pool are disabled. The thread
-cap is `MAX_CPU_NUMBER` in `include/openblas/config.h`.
+The configuration uses generic 2x2 C kernels (or the selected SIMD
+backend), the existing simple Level 3 threading path, and one pthread per
+job created and joined by each parallel call. Small-matrix kernels, GEMV
+forwarding, dynamic CPU dispatch, LAPACK, and a persistent thread pool are
+disabled. Threads are user selected through `OPENBLAS_NUM_THREADS` or
+`openblas_set_num_threads`, capped at `MAX_CPU_NUMBER` (144) in
+`include/openblas/config.h`.
 Generic kernels prioritize a small extraction over tuned SIMD performance.
 
 For a separate sanitizer build:

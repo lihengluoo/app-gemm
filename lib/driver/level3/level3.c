@@ -337,6 +337,11 @@ int CNAME(blas_arg_t *args, BLASLONG *range_m, BLASLONG *range_n,
       BLASLONG pad_min_l = min_l;
 #if defined(BFLOAT16)
     pad_min_l = (min_l + BFLOAT16_ALIGN_K - 1) & ~(BFLOAT16_ALIGN_K - 1);
+#elif defined(I8GEMM_SIMD_PACK)
+      /* The 4509y AVX-512 VNNI kernel holds each packed k element as a
+         16-bit lane, so one packed B column spans 2 * ceil(min_l / 2)
+         bytes; that stride also spaces consecutive B panels in sb. */
+      pad_min_l = 2 * ((min_l + 1) & ~1L);
 #endif
 
       /* First, we have to move data A to L2 cache */
