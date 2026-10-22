@@ -29,7 +29,7 @@ layouts, all four transpose combinations, and one/four threads. They check
 odd and blocked dimensions, alpha/beta scaling, beta zero with junk-filled
 C, zero dimensions/depth, unchanged inputs, and padding/guards. Linker
 wrapping checks that the large cases dispatch four jobs through the
-OpenBLAS pool.
+parallel driver.
 
 ## Extracted implementation
 
@@ -42,13 +42,14 @@ configuration. The build does not read `../OpenBLAS` or need CMake/Fortran.
 The library compiles the shared generic kernels once per INT8 type layer:
 int8 inputs and packed buffers (`IFLOAT`/`XFLOAT`), int32 accumulation
 (`FLOAT`), with the DGEMM blocking parameters. The thread queue mode is
-tagged `BLAS_DOUBLE` so the server keeps sizing the worker scratch from
-that shared blocking.
+tagged `BLAS_DOUBLE` so the worker scratch keeps its size from that
+shared blocking.
 
 The configuration uses generic 2x2 C kernels, the existing simple Level 3
-threading path, and a pthread pool capped at four threads. Small-matrix
-kernels, GEMV forwarding, dynamic CPU dispatch, and LAPACK are disabled.
-The thread cap is `MAX_CPU_NUMBER` in `include/openblas/config.h`.
+threading path, and one pthread per job created and joined by each
+parallel call. Small-matrix kernels, GEMV forwarding, dynamic CPU
+dispatch, LAPACK, and a persistent thread pool are disabled. The thread
+cap is `MAX_CPU_NUMBER` in `include/openblas/config.h`.
 Generic kernels prioritize a small extraction over tuned SIMD performance.
 
 For a separate sanitizer build:

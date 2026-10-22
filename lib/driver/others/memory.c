@@ -429,23 +429,6 @@ int  goto_get_num_procs  (void) {
 
 static void blas_memory_init(void);
 
-void openblas_fork_handler(void)
-{
-  // This handler shuts down the OpenBLAS-managed PTHREAD pool when OpenBLAS is
-  // built with "make USE_OPENMP=0".
-  // Hanging can still happen when OpenBLAS is built against the libgomp
-  // implementation of OpenMP. The problem is tracked at:
-  //   http://gcc.gnu.org/bugzilla/show_bug.cgi?id=60035
-  // In the mean time build with USE_OPENMP=0 or link against another
-  // implementation of OpenMP.
-#if !((defined(OS_WINDOWS) && !defined(OS_CYGWIN_NT)) || defined(OS_ANDROID)) && defined(SMP_SERVER)
-  int err;
-  err = pthread_atfork ((void (*)(void)) BLASFUNC(blas_thread_shutdown), NULL, blas_memory_init);
-  if(err != 0)
-    openblas_warning(0, "OpenBLAS Warning ... cannot install fork handler. You may meet hang after fork.\n");
-#endif
-}
-
 extern int openblas_num_threads_env(void);
 extern int openblas_goto_num_threads_env(void);
 extern int openblas_omp_num_threads_env(void);
@@ -528,30 +511,27 @@ int hugetlb_allocated = 0;
 #define LIKELY_ONE(x) (__builtin_expect(x, 1))
 #endif
 
+/* How blas_memory_cleanup releases an allocation; each backend stores
+   its tag in the allocation header it creates. */
+#define ALLOC_KIND_MMAP   0
+#define ALLOC_KIND_MALLOC 1
+
 /* Stores information about the allocation and how to release it */
 struct alloc_t {
   /* Whether this allocation is being used */
   int used;
-  /* Any special attributes needed when releasing this allocation */
+  /* Which backend allocated this memory: ALLOC_KIND_MMAP or
+     ALLOC_KIND_MALLOC */
   int attr;
-  /* Function that can properly release this memory */
-  void (*release_func)(struct alloc_t *);
   /* Pad to 64-byte alignment */
-  char pad[64 - 2 * sizeof(int) - sizeof(void(*))];
+  char pad[64 - 2 * sizeof(int)];
 };
 
-/* Convenience macros for storing release funcs */
-#define STORE_RELEASE_FUNC(address, func)                   \
+/* Records which backend produced a successful allocation. */
+#define MARK_ALLOC_KIND(address, kind)                      \
   if (address != (void *)-1) {                              \
     struct alloc_t *alloc_info = (struct alloc_t *)address; \
-    alloc_info->release_func = func;                        \
-  }
-
-#define STORE_RELEASE_FUNC_WITH_ATTR(address, func, attr)   \
-  if (address != (void *)-1) {                              \
-    struct alloc_t *alloc_info = (struct alloc_t *)address; \
-    alloc_info->release_func = func;                        \
-    alloc_info->attr = attr;                                \
+    alloc_info->attr = kind;                                \
   }
 
 /* The number of bytes that will be allocated for each buffer. When allocating
@@ -661,7 +641,7 @@ static void *alloc_mmap(void *address){
                        MMAP_ACCESS, MMAP_POLICY, -1, 0);
   }
 
-  STORE_RELEASE_FUNC(map_address, alloc_mmap_free);
+  MARK_ALLOC_KIND(map_address, ALLOC_KIND_MMAP);
 
 #ifdef OS_LINUX
   my_mbind(map_address, allocation_block_size, MPOL_PREFERRED, NULL, 0, 0);
@@ -804,7 +784,7 @@ static void *alloc_mmap(void *address){
   }
 #endif
 
-  STORE_RELEASE_FUNC(map_address, alloc_mmap_free);
+  MARK_ALLOC_KIND(map_address, ALLOC_KIND_MMAP);
 
   return map_address;
 }
@@ -830,7 +810,7 @@ static void *alloc_malloc(void *address){
 
   if (map_address == (void *)NULL) map_address = (void *)-1;
 
-  STORE_RELEASE_FUNC(map_address, alloc_malloc_free);
+  MARK_ALLOC_KIND(map_address, ALLOC_KIND_MALLOC);
 
   return map_address;
 
@@ -1142,7 +1122,8 @@ static void blas_memory_cleanup(void* ptr){
     for (pos = 0; pos < NUM_BUFFERS; pos ++){
       struct alloc_t *alloc_info = table[pos];
       if (alloc_info) {
-        alloc_info->release_func(alloc_info);
+        if (alloc_info->attr == ALLOC_KIND_MALLOC) alloc_malloc_free(alloc_info);
+        else alloc_mmap_free(alloc_info);
         table[pos] = (void *)0;
       }
     }
@@ -1166,31 +1147,6 @@ void *blas_memory_alloc(int procpos){
 
   void *map_address;
 
-  void *(*memoryalloc[])(void *address) = {
-#ifdef ALLOC_DEVICEDRIVER
-    alloc_devicedirver,
-#endif
-#ifdef ALLOC_SHM && !defined(ALLOC_HUGETLB)
-    alloc_shm,
-#endif
-#if ((defined ALLOC_HUGETLB) && (defined OS_LINUX  || defined OS_AIX  || defined __sun__  || defined OS_WINDOWS))
-    alloc_hugetlb,
-#endif
-#ifdef ALLOC_MMAP
-    alloc_mmap,
-#endif
-#ifdef ALLOC_QALLOC
-    alloc_qalloc,
-#endif
-#ifdef ALLOC_WINDOWS
-    alloc_windows,
-#endif
-#ifdef ALLOC_MALLOC
-    alloc_malloc,
-#endif
-    NULL,
-  };
-  void *(**func)(void *address);
   struct alloc_t * alloc_info;
   struct alloc_t ** alloc_table;
 
@@ -1263,34 +1219,10 @@ UNLOCK_COMMAND(&alloc_lock);
       printf("Allocation Start : %lx\n", base_address);
 #endif
 
-      map_address = (void *)-1;
+      map_address = alloc_mmap((void *)base_address);
 
-      func = &memoryalloc[0];
-
-      while ((*func != NULL) && (map_address == (void *) -1)) {
-
-        map_address = (*func)((void *)base_address);
-
-#ifdef ALLOC_DEVICEDRIVER
-        if ((*func ==  alloc_devicedirver) && (map_address == (void *)-1)) {
-            fprintf(stderr, "OpenBLAS Warning ... Physically contiguous allocation failed.\n");
-        }
-#endif
-
-#ifdef ALLOC_HUGETLBFILE
-        if ((*func == alloc_hugetlbfile) && (map_address == (void *)-1)) {
-#ifndef OS_WINDOWS
-            fprintf(stderr, "OpenBLAS Warning ... HugeTLB(File) allocation failed.\n");
-#endif
-        }
-#endif
-
-#if (defined ALLOC_HUGETLB) && (defined OS_LINUX  || defined OS_AIX  || defined __sun__  || defined OS_WINDOWS)
-        if ((*func == alloc_hugetlb) && (map_address != (void *)-1)) hugetlb_allocated = 1;
-#endif
-
-        func ++;
-      }
+      if (map_address == (void *)-1)
+        map_address = alloc_malloc((void *)base_address);
 
 #ifdef DEBUG
       printf("  Success -> %08lx\n", map_address);
@@ -1514,10 +1446,6 @@ extern void openblas_read_env(void);
 void CONSTRUCTOR gotoblas_init(void) {
 
   if (gotoblas_initialized) return;
-
-#ifdef SMP
-  openblas_fork_handler();
-#endif
 
   openblas_read_env();
 

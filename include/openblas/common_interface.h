@@ -48,11 +48,6 @@ void    BLASFUNC(xerbla)(char *, blasint *info, blasint);
 
 OPENBLAS_EXPORT void extern openblas_set_num_threads_(int *);
 
-/*Set the threading backend to a custom callback.*/
-typedef void (*openblas_dojob_callback)(int thread_num, void *jobdata, int dojob_data);
-typedef void (*openblas_threads_callback)(int sync, openblas_dojob_callback dojob, int numjobs, size_t jobdata_elsize, void *jobdata, int dojob_data);
-extern openblas_threads_callback openblas_threads_callback_;
-
 FLOATRET  OPENBLAS_API(sdot)  (blasint *, float  *, blasint *, float  *, blasint *);
 FLOATRET  OPENBLAS_API(sdsdot)(blasint *, float  *,        float  *, blasint *, float  *, blasint *);
 

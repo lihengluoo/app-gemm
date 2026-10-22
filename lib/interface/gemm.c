@@ -97,31 +97,20 @@
 #define GEMM_MULTITHREAD_THRESHOLD 4
 #endif
 
-static int (*gemm[])(blas_arg_t *, BLASLONG *, BLASLONG *, IFLOAT *, IFLOAT *, BLASLONG) = {
-#if !defined(GEMM3M) || defined(GENERIC)
-  GEMM_NN, GEMM_TN, GEMM_RN, GEMM_CN,
-  GEMM_NT, GEMM_TT, GEMM_RT, GEMM_CT,
-  GEMM_NR, GEMM_TR, GEMM_RR, GEMM_CR,
-  GEMM_NC, GEMM_TC, GEMM_RC, GEMM_CC,
-#if defined(SMP) && !defined(USE_SIMPLE_THREADED_LEVEL3)
-  GEMM_THREAD_NN, GEMM_THREAD_TN, GEMM_THREAD_RN, GEMM_THREAD_CN,
-  GEMM_THREAD_NT, GEMM_THREAD_TT, GEMM_THREAD_RT, GEMM_THREAD_CT,
-  GEMM_THREAD_NR, GEMM_THREAD_TR, GEMM_THREAD_RR, GEMM_THREAD_CR,
-  GEMM_THREAD_NC, GEMM_THREAD_TC, GEMM_THREAD_RC, GEMM_THREAD_CC,
-#endif
-#else
-  GEMM3M_NN, GEMM3M_TN, GEMM3M_RN, GEMM3M_CN,
-  GEMM3M_NT, GEMM3M_TT, GEMM3M_RT, GEMM3M_CT,
-  GEMM3M_NR, GEMM3M_TR, GEMM3M_RR, GEMM3M_CR,
-  GEMM3M_NC, GEMM3M_TC, GEMM3M_RC, GEMM3M_CC,
-#if defined(SMP) && !defined(USE_SIMPLE_THREADED_LEVEL3)
-  GEMM3M_THREAD_NN, GEMM3M_THREAD_TN, GEMM3M_THREAD_RN, GEMM3M_THREAD_CN,
-  GEMM3M_THREAD_NT, GEMM3M_THREAD_TT, GEMM3M_THREAD_RT, GEMM3M_THREAD_CT,
-  GEMM3M_THREAD_NR, GEMM3M_THREAD_TR, GEMM3M_THREAD_RR, GEMM3M_THREAD_CR,
-  GEMM3M_THREAD_NC, GEMM3M_THREAD_TC, GEMM3M_THREAD_RC, GEMM3M_THREAD_CC,
-#endif
-#endif
-};
+/* Dispatch table replacement: call the level-3 driver for the transpose
+   combination directly. Real types only produce N (0) and T (1) here;
+   conjugate codes are folded to them by the argument checks above. */
+static void gemm_driver_call(int transa, int transb, blas_arg_t *args,
+                             IFLOAT *sa, IFLOAT *sb) {
+
+  if (transb == 0) {
+    if (transa == 0) GEMM_NN(args, NULL, NULL, sa, sb, 0);
+    else             GEMM_TN(args, NULL, NULL, sa, sb, 0);
+  } else {
+    if (transa == 0) GEMM_NT(args, NULL, NULL, sa, sb, 0);
+    else             GEMM_TT(args, NULL, NULL, sa, sb, 0);
+  }
+}
 
 #if defined(SMALL_MATRIX_OPT) && !defined(GEMM3M) && !defined(XDOUBLE) && !defined(HFLOAT16) && !defined(BGEMM)
 #define USE_SMALL_MATRIX_OPT 1
@@ -804,39 +793,13 @@ if (*(FLOAT*)args.alpha != 0.0) {
  if (args.nthreads == 1) {
 #endif
 
-    (gemm[(transb << 2) | transa])(&args, NULL, NULL, sa, sb, 0);
+    gemm_driver_call(transa, transb, &args, sa, sb);
 
 #ifdef SMP
 
   } else {
 
-#ifndef USE_SIMPLE_THREADED_LEVEL3
-
-#ifndef NO_AFFINITY
-      nodes = get_num_nodes();
-
-      if ((nodes > 1) && get_node_equal()) {
-
-	args.nthreads /= nodes;
-
-	gemm_thread_mn(mode, &args, NULL, NULL, gemm[16 | (transb << 2) | transa], sa, sb, nodes);
-
-      } else {
-#endif
-
-	(gemm[16 | (transb << 2) | transa])(&args, NULL, NULL, sa, sb, 0);
-
-#else
-
-	GEMM_THREAD(mode, &args, NULL, NULL, gemm[(transb << 2) | transa], sa, sb, args.nthreads);
-
-#endif
-
-#ifndef USE_SIMPLE_THREADED_LEVEL3
-#ifndef NO_AFFINITY
-      }
-#endif
-#endif
+	GEMM_THREAD(mode, &args, NULL, NULL, sa, sb, args.nthreads);
 
 #endif
 

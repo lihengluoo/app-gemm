@@ -40,7 +40,7 @@
 #include <stdlib.h>
 #include "common.h"
 
-int CNAME(int mode, blas_arg_t *arg, BLASLONG *range_m, BLASLONG *range_n, int (*function)(blas_arg_t*, BLASLONG*, BLASLONG*,FLOAT *, FLOAT *, BLASLONG), void *sa, void *sb, BLASLONG nthreads) {
+int CNAME(int mode, blas_arg_t *arg, BLASLONG *range_m, BLASLONG *range_n, void *sa, void *sb, BLASLONG nthreads) {
 
   blas_queue_t queue[MAX_CPU_NUMBER];
   BLASLONG range[MAX_CPU_NUMBER + 1];
@@ -67,7 +67,6 @@ int CNAME(int mode, blas_arg_t *arg, BLASLONG *range_m, BLASLONG *range_n, int (
     range[num_cpu + 1] = range[num_cpu] + width;
 
     queue[num_cpu].mode    = mode;
-    queue[num_cpu].routine = function;
     queue[num_cpu].args    = arg;
     queue[num_cpu].range_m = range_m;
     queue[num_cpu].range_n = &range[num_cpu];

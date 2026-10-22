@@ -10,7 +10,7 @@ library_cflags := -std=c11 -Wall -m64 -fPIC -pthread
 test_cflags := -std=c11 -Wall -Wextra -Werror -Wpedantic \
                -Wstrict-prototypes -Wmissing-prototypes -pthread
 
-runtime_names := blas_server blas_server_callback divtable memory \
+runtime_names := blas_server divtable memory \
                  openblas_cancel openblas_env openblas_error_handle parameter xerbla
 named_names := cblas_i8gemm i8gemm_nn i8gemm_nt i8gemm_tn i8gemm_tt gemm_thread_n \
                i8gemm_kernel i8gemm_oncopy i8gemm_otcopy i8gemm_beta

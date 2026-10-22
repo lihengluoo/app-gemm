@@ -62,52 +62,24 @@ static size_t openblas_xerbla_name_length(const char *message,
   return (size_t)length;
 }
 
-static void openblas_xerbla_default(const char *message, const blasint *info,
-                                    size_t length) {
-  int precision = length > INT_MAX ? INT_MAX : (int)length;
+static void openblas_xerbla_print(char *message, blasint *info,
+                                  blasint length) {
+  size_t name_length = openblas_xerbla_name_length(message, length);
+  int precision = name_length > INT_MAX ? INT_MAX : (int)name_length;
 
   printf(MSGFMT, precision, message == NULL ? "" : message,
          (long long)*info);
 }
 
-static openblas_xerbla_handler openblas_xerbla = openblas_xerbla_default;
-static volatile BLASULONG openblas_xerbla_lock = 0;
-
-OPENBLAS_EXPORT openblas_xerbla_handler
-openblas_set_xerbla(openblas_xerbla_handler handler) {
-  openblas_xerbla_handler previous;
-
-  if (handler == NULL) handler = openblas_xerbla_default;
-
-  blas_lock(&openblas_xerbla_lock);
-  previous = openblas_xerbla;
-  openblas_xerbla = handler;
-  blas_unlock(&openblas_xerbla_lock);
-
-  return previous;
-}
-
-static void openblas_xerbla_dispatch(char *message, blasint *info,
-                                    blasint length) {
-  openblas_xerbla_handler handler;
-  size_t name_length = openblas_xerbla_name_length(message, length);
-
-  blas_lock(&openblas_xerbla_lock);
-  handler = openblas_xerbla;
-  blas_unlock(&openblas_xerbla_lock);
-
-  handler(message, info, name_length);
-}
-
 #ifdef __ELF__
 void __xerbla(char *message, blasint *info, blasint length) {
-  return openblas_xerbla_dispatch(message, info, length);
+  return openblas_xerbla_print(message, info, length);
 }
 
 void BLASFUNC(xerbla)(char *, blasint *, blasint)
   __attribute__ ((weak, alias ("__xerbla")));
 #else
 void BLASFUNC(xerbla)(char *message, blasint *info, blasint length) {
-  return openblas_xerbla_dispatch(message, info, length);
+  return openblas_xerbla_print(message, info, length);
 }
 #endif

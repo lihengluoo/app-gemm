@@ -54,25 +54,6 @@ OPENBLAS_EXPORT char* openblas_get_config(void);
 /*Get the CPU corename on runtime.*/
 OPENBLAS_EXPORT char* openblas_get_corename(void);
 
-/*Set the threading backend to a custom callback.*/
-typedef void (*openblas_dojob_callback)(int thread_num, void *jobdata, int dojob_data);
-typedef void (*openblas_threads_callback)(int sync, openblas_dojob_callback dojob, int numjobs, size_t jobdata_elsize, void *jobdata, int dojob_data);
-OPENBLAS_EXPORT void openblas_set_threads_callback_function(openblas_threads_callback callback);
-
-/* Replace the XERBLA handler for this OpenBLAS instance and return the
- * previous handler. Passing NULL restores the default. Callbacks may run
- * concurrently and must be thread-safe. The name and info pointers are valid
- * only during the callback; name spans name_length bytes and need not be
- * NUL-terminated. Replacement is thread-safe but does not wait for in-flight
- * calls, so the previous handler must remain loaded until they complete. */
-#ifndef OPENBLAS_XERBLA_HANDLER_DEFINED
-#define OPENBLAS_XERBLA_HANDLER_DEFINED
-typedef void (*openblas_xerbla_handler)(const char *name,
-                                        const blasint *info,
-                                        size_t name_length);
-#endif
-OPENBLAS_EXPORT openblas_xerbla_handler openblas_set_xerbla(openblas_xerbla_handler handler);
-
 /* Cooperative cancellation of in-flight operations.
  *
  * Every thread owns a pointer-sized generation slot;
