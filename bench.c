@@ -20,9 +20,9 @@ static int8_t matrix_a[row_count * depth_count];
 static int8_t matrix_b[depth_count * column_count];
 static int32_t matrix_c[row_count * column_count];
 
-static uint64_t read_monotonic_ms(void) {
+static uint64_t get_time_ms(void)
+{
     struct timespec now;
-
     clock_gettime(CLOCK_MONOTONIC, &now);
     return (uint64_t)now.tv_sec * 1000u + (uint64_t)now.tv_nsec / 1000000u;
 }
@@ -72,13 +72,13 @@ int main(void) {
                  matrix_a, depth_count, matrix_b, column_count,
                  0, matrix_c, column_count);
 
-    start_ms = read_monotonic_ms();
+    start_ms = get_time_ms();
     for (int call = 0; call < BENCH_ITERATION_COUNT; call++)
         cblas_i8gemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
                      row_count, column_count, depth_count, 1,
                      matrix_a, depth_count, matrix_b, column_count,
                      0, matrix_c, column_count);
-    const uint64_t elapsed_ms = read_monotonic_ms() - start_ms;
+    const uint64_t elapsed_ms = get_time_ms() - start_ms;
 
     /* One sampled result, checked against an inline reference dot. */
     if (verify_result() != 0) return 1;
