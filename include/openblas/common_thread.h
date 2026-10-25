@@ -254,6 +254,9 @@ int blas_level1_thread(int mode, BLASLONG m, BLASLONG n, BLASLONG k, void *alpha
 
 int gemm_thread_m (int mode, blas_arg_t *, BLASLONG *, BLASLONG *, int (*function)(blas_arg_t*, BLASLONG*, BLASLONG*,FLOAT *, FLOAT *, BLASLONG ), void *, void *, BLASLONG);
 
+/* Requires positive internal column_count; includes the calling thread. */
+int get_gemm_thread_count(BLASLONG column_count);
+
 int gemm_thread_n (int mode, blas_arg_t *, BLASLONG *, BLASLONG *, void *, void *, BLASLONG);
 
 int gemm_thread_mn(int mode, blas_arg_t *, BLASLONG *, BLASLONG *, int (*function)(blas_arg_t*, BLASLONG*, BLASLONG*,FLOAT *, FLOAT *, BLASLONG), void *, void *, BLASLONG);

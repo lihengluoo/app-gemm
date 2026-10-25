@@ -244,6 +244,12 @@ static inline int get_gemm_optimal_nthreads(double MNK) {
     }
   }
 }
+
+int get_gemm_thread_count(BLASLONG column_count) {
+  const BLASLONG thread_count = blas_get_cpu_number();
+
+  return (int)MIN(thread_count, column_count);
+}
 #endif
 
 OPENBLAS_EXPORT
@@ -268,7 +274,6 @@ void NAME(char *TRANSA, char *TRANSB,
   IFLOAT *sa, *sb;
 
 #ifdef SMP
-  double MNK;
 #if defined(USE_SIMPLE_THREADED_LEVEL3) || !defined(NO_AFFINITY)
 #ifndef COMPLEX
 #ifdef XDOUBLE
@@ -395,7 +400,6 @@ void CNAME(enum CBLAS_ORDER order, enum CBLAS_TRANSPOSE TransA, enum CBLAS_TRANS
   XFLOAT *sa, *sb;
 
 #ifdef SMP
-  double MNK;
 #if defined(USE_SIMPLE_THREADED_LEVEL3) || !defined(NO_AFFINITY)
 #ifndef COMPLEX
 #ifdef XDOUBLE
@@ -785,8 +789,7 @@ if (*(FLOAT*)args.alpha != 0.0) {
   mode |= (transb << BLAS_TRANSB_SHIFT);
 #endif
 
-  MNK = (double) args.m * (double) args.n * (double) args.k;
-  args.nthreads = get_gemm_optimal_nthreads(MNK);
+  args.nthreads = get_gemm_thread_count(args.n);
 
   args.common = NULL;
 

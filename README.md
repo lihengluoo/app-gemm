@@ -15,6 +15,7 @@ uses POSIX threads.
 ```sh
 make -j          # build the library and the benchmark
 make run         # build and run the i8gemm benchmark
+make test        # check configured thread counts and full matrix results
 ```
 
 The outputs are `build/libopenblas_gemm.a` and `build/gemm_bench`.
@@ -75,13 +76,18 @@ tagged `BLAS_DOUBLE` so the worker scratch keeps its size from that
 shared blocking.
 
 The configuration uses generic 2x2 C kernels (or the selected SIMD
-backend), the existing simple Level 3 threading path, and one pthread per
-job created and joined by each parallel call. Small-matrix kernels, GEMV
-forwarding, dynamic CPU dispatch, LAPACK, and a persistent thread pool are
-disabled. Threads are user selected through
+backend) and the existing simple Level 3 threading path. The first job
+runs on the calling thread; each remaining job gets a pthread created and
+joined by that call. Small-matrix kernels, GEMV forwarding, dynamic CPU
+dispatch, LAPACK, and a persistent thread pool are disabled. The compute
+thread count, including the caller, is selected through
 `openblas_set_num_threads`, capped at `MAX_CPU_NUMBER` (144) in
-`include/openblas/config.h`; there is no environment variable or CPU
-probing, keeping the library's external surface at
+`include/openblas/config.h` and at the number of nonempty internal column
+partitions (output rows for row-major calls, output columns for
+column-major calls). There is no workload-size heuristic; small matrices
+use the configured count whenever enough partitions exist. Without an
+explicit setting, the compiled default is four. There is no environment
+variable or CPU probing, keeping the library's external surface at
 `pthread_create`/`pthread_join`, `pthread_mutex_lock`/`unlock`,
 `aligned_alloc`/`free`, `abort`, and `printf`.
 Generic kernels prioritize a small extraction over tuned SIMD performance.

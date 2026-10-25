@@ -34,12 +34,13 @@ named_names := cblas_i8gemm i8gemm_nn i8gemm_nt i8gemm_tn i8gemm_tt gemm_thread_
 library_objects := $(addprefix $(build_dir)/,$(addsuffix .o,$(runtime_names) $(named_names)))
 library := $(build_dir)/libopenblas_gemm.a
 bench_program := $(build_dir)/gemm_bench
+test_program := $(build_dir)/thread_count_test
 
 # These names are required by the OpenBLAS source templates.
 named_cppflags = -DASMNAME=$(1) -DASMFNAME=$(1)_ -DNAME=$(1)_ -DCNAME=$(1) \
                  -DCHAR_NAME='"$(1)_"' -DCHAR_CNAME='"$(1)"'
 
-.PHONY: all run clean
+.PHONY: all run test clean
 
 all: $(library) $(bench_program)
 
@@ -105,7 +106,19 @@ $(bench_program): $(build_dir)/bench.o $(library)
 run: all
 	@./$(bench_program)
 
+$(build_dir)/thread_count_test.o: tests/thread_count.c tests/thread_count.h include/cblas.h Makefile
+	mkdir -p "$(@D)"
+	$(CC) $(CPPFLAGS) -Iinclude $(CFLAGS) $(bench_cflags) \
+	    -MMD -MP -c $< -o $@
+
+$(test_program): $(build_dir)/thread_count_test.o $(library)
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -pthread \
+	    -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join $(LDLIBS) -o $@
+
+test: $(test_program)
+	@$(test_program)
+
 clean:
 	rm -rf "$(build_dir)"
 
--include $(library_objects:.o=.d) $(build_dir)/bench.d
+-include $(library_objects:.o=.d) $(build_dir)/bench.d $(build_dir)/thread_count_test.d
